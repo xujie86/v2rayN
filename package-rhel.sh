@@ -690,13 +690,12 @@ cat > %{buildroot}%{_datadir}/metainfo/v2rayn.metainfo.xml << 'EOF'
   <name>v2rayN</name>
   <summary>v2rayN (Avalonia) GUI client</summary>
   <description>
-    <p>
-      v2rayN Linux for Red Hat Enterprise Linux<br/>
-      Support vless / vmess / Trojan / http / socks / Anytls / Hysteria2 / Shadowsocks / tuic / WireGuard<br/>
-      Support Red Hat Enterprise Linux / Fedora Linux / Rocky Linux / AlmaLinux / CentOS<br/>
-      For more information, Please visit our website<br/>
-      https://github.com/2dust/v2rayN
-    </p>
+    <ul>
+      <li>v2rayN Linux for Red Hat Enterprise Linux</li>
+      <li>Support vless / vmess / Trojan / http / socks / Anytls / Hysteria2 / Shadowsocks / tuic / WireGuard</li>
+      <li>Support Red Hat Enterprise Linux / Fedora Linux / Rocky Linux / AlmaLinux / CentOS</li>
+      <li>For more information, Please visit our website https://github.com/2dust/v2rayN</li>
+    </ul>
   </description>
   <launchable type="desktop-id">v2rayn.desktop</launchable>
   <url type="homepage">https://github.com/2dust/v2rayN</url>
