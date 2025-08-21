@@ -678,7 +678,7 @@ EOF
 # Icon
 if [ -f "%{_builddir}/__PKGROOT__/v2rayn.png" ]; then
   install -dm0755 %{buildroot}%{_datadir}/icons/hicolor/256x256/apps
-  install -m0644 %{_buildroot}/__PKGROOT__/v2rayn.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/v2rayn.png
+  install -m0644 %{_builddir}/__PKGROOT__/v2rayn.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/v2rayn.png
 fi
 
 # --- AppStream (GNOME Software) ---
