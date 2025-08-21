@@ -681,27 +681,34 @@ if [ -f "%{_builddir}/__PKGROOT__/v2rayn.png" ]; then
   install -m0644 %{_builddir}/__PKGROOT__/v2rayn.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/v2rayn.png
 fi
 
-# -------------------- 新增 AppStream metainfo（使 GNOME 商店显示） --------------------
+# -------- AppStream (GNOME Software) metadata --------
 install -dm0755 %{buildroot}%{_datadir}/metainfo
 cat > %{buildroot}%{_datadir}/metainfo/v2rayn.metainfo.xml << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
-<component type="desktop-application" id="v2rayn.desktop">
+<component type="desktop-application">
+  <id>v2rayn.desktop</id>
   <name>v2rayN</name>
-  <summary>v2rayN (Avalonia) GUI client for Linux (x86_64/aarch64)</summary>
+  <summary>v2rayN (Avalonia) GUI client</summary>
   <description>
-    <p>v2rayN Linux for Red Hat Enterprise Linux</p>
-    <p>Support vless / vmess / Trojan / http / socks / Anytls / Hysteria2 / Shadowsocks / tuic / WireGuard</p>
-    <p>Support Red Hat Enterprise Linux / Fedora Linux / Rocky Linux / AlmaLinux / CentOS</p>
-    <p>For more information, Please visit our website
-https://github.com/2dust/v2rayN</p>
+    <p>v2rayN GUI client for Linux. Supports VLESS/VMess/Trojan/HTTP/SOCKS/AnyTLS/Hysteria2/Shadowsocks/TUIC/WireGuard.</p>
   </description>
   <launchable type="desktop-id">v2rayn.desktop</launchable>
-  <project_license>GPL-3.0-only</project_license>
-  <metadata_license>CC0-1.0</metadata_license>
   <url type="homepage">https://github.com/2dust/v2rayN</url>
+  <url type="help">https://github.com/2dust/v2rayN/issues</url>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <provides>
+    <binary>v2rayn</binary>
+  </provides>
+  <releases>
+    <release version="__VERSION__"/>
+  </releases>
+  <categories>
+    <category>Network</category>
+  </categories>
 </component>
 EOF
-# -------------------- 新增 AppStream metainfo 结束 ------------------------------------
+# -----------------------------------------------------
 
 %post
 /usr/bin/update-desktop-database %{_datadir}/applications >/dev/null 2>&1 || true
@@ -716,9 +723,7 @@ EOF
 /opt/v2rayN
 %{_datadir}/applications/v2rayn.desktop
 %{_datadir}/icons/hicolor/256x256/apps/v2rayn.png
-# -------------------- 新增：将 metainfo 打进包 ----------------------------------------
 %{_datadir}/metainfo/v2rayn.metainfo.xml
-# -------------------------------------------------------------------------------------
 SPEC
 
   # Autostart injection (inside %install) and %files entry
