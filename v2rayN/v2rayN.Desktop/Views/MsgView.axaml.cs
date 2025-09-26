@@ -13,6 +13,8 @@ public partial class MsgView : ReactiveUserControl<MsgViewModel>
     {
         InitializeComponent();
 
+        txtMsg.Options.AllowScrollBelowDocument = false;
+
         ViewModel = new MsgViewModel(UpdateViewHandler);
 
         this.WhenActivated(disposables =>
@@ -45,18 +47,27 @@ public partial class MsgView : ReactiveUserControl<MsgViewModel>
             ClearMsg();
         }
 
+        var end = txtMsg.Document.TextLength;
+        txtMsg.CaretOffset = end;
+        txtMsg.SelectionStart = txtMsg.SelectionEnd = end;
+        txtMsg.AppendText(msg.ToString());
+
         if (togScrollToEnd.IsChecked ?? true)
         {
-            //txtMsg.ScrollToLine(txtMsg.Document.LineCount);
-            txtMsg.ScrollToEnd();
+            var tv = txtMsg.TextArea.TextView;
+            if (tv.DocumentHeight > tv.Bounds.Height)
+            {
+                txtMsg.ScrollToEnd();
+            }
         }
-        txtMsg.AppendText(msg.ToString());
     }
 
     public void ClearMsg()
     {
         txtMsg.Clear();
+        txtMsg.CaretOffset = txtMsg.Document.TextLength;
         txtMsg.AppendText("----- Message cleared -----\n");
+        txtMsg.CaretOffset = txtMsg.Document.TextLength;
     }
 
     private void menuMsgViewSelectAll_Click(object? sender, RoutedEventArgs e)
