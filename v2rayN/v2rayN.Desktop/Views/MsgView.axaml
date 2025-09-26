@@ -83,6 +83,10 @@
             <avaloniaEdit:TextEditor.ContextFlyout>
                 <MenuFlyout>
                     <MenuItem
+                        x:Name="menuMsgViewSelectAll"
+                        Click="menuMsgViewSelectAll_Click"
+                        Header="{x:Static resx:ResUI.menuMsgViewSelectAll}" />
+                    <MenuItem
                         x:Name="menuMsgViewCopy"
                         Click="menuMsgViewCopy_Click"
                         Header="{x:Static resx:ResUI.menuMsgViewCopy}" />
