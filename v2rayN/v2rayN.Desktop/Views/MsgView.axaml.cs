@@ -65,8 +65,11 @@ public partial class MsgView : ReactiveUserControl<MsgViewModel>
 
     private void menuMsgViewSelectAll_Click(object? sender, RoutedEventArgs e)
     {
-        txtMsg.Focus();
-        txtMsg.SelectAll();
+        Dispatcher.UIThread.Post(() =>
+        {
+            txtMsg.TextArea.Focus();
+            txtMsg.SelectAll();
+        }, DispatcherPriority.Render);
     }
 
     private async void menuMsgViewCopy_Click(object? sender, RoutedEventArgs e)
