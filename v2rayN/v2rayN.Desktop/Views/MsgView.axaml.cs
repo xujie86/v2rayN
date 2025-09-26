@@ -9,12 +9,12 @@ namespace v2rayN.Desktop.Views;
 
 public partial class MsgView : ReactiveUserControl<MsgViewModel>
 {
+    private const int MaxLines = 350;
+    private const int KeepLines = 30;
+
     public MsgView()
     {
         InitializeComponent();
-
-        txtMsg.Options.AllowScrollBelowDocument = false;
-
         ViewModel = new MsgViewModel(UpdateViewHandler);
 
         this.WhenActivated(disposables =>
@@ -32,9 +32,8 @@ public partial class MsgView : ReactiveUserControl<MsgViewModel>
                 if (obj is null)
                     return false;
 
-                Dispatcher.UIThread.Post(() =>
-                    ShowMsg(obj),
-                   DispatcherPriority.ApplicationIdle);
+                Dispatcher.UIThread.Post(() => ShowMsg(obj),
+                    DispatcherPriority.ApplicationIdle);
                 break;
         }
         return await Task.FromResult(true);
@@ -42,39 +41,28 @@ public partial class MsgView : ReactiveUserControl<MsgViewModel>
 
     private void ShowMsg(object msg)
     {
-        if (txtMsg.Document.LineCount > ViewModel?.NumMaxMsg)
-        {
-            ClearMsg();
-        }
-
-        var end = txtMsg.Document.TextLength;
-        txtMsg.CaretOffset = end;
-        txtMsg.Select(end, 0);          // 这里替代 SelectionStart/End
-
         txtMsg.AppendText(msg.ToString());
+
+        if (txtMsg.Document.LineCount > MaxLines)
+        {
+            var lc = txtMsg.Document.LineCount;
+            var cutLineNumber = lc - KeepLines;
+            var cutLine = txtMsg.Document.GetLineByNumber(cutLineNumber);
+            txtMsg.Document.Remove(0, cutLine.Offset);
+        }
 
         if (togScrollToEnd.IsChecked ?? true)
         {
-            var tv = txtMsg.TextArea.TextView;
-            if (tv.DocumentHeight > tv.Bounds.Height)
-            {
-                txtMsg.ScrollToEnd();
-            }
+            txtMsg.ScrollToEnd();
         }
     }
 
     public void ClearMsg()
     {
-        txtMsg.Clear();
-        txtMsg.CaretOffset = txtMsg.Document.TextLength;
-        txtMsg.AppendText("----- Message cleared -----\n");
-        txtMsg.CaretOffset = txtMsg.Document.TextLength;
-    }
+        ViewModel?.ClearMsg();
 
-    private void menuMsgViewSelectAll_Click(object? sender, RoutedEventArgs e)
-    {
-        txtMsg.Focus();
-        txtMsg.SelectAll();
+        txtMsg.Text = string.Empty;
+        txtMsg.AppendText("----- Message cleared -----\n");
     }
 
     private async void menuMsgViewCopy_Click(object? sender, RoutedEventArgs e)
