@@ -10,7 +10,7 @@ namespace v2rayN.Desktop.Views;
 public partial class MsgView : ReactiveUserControl<MsgViewModel>
 {
     private const int MaxLines = 350;
-    private const int KeepLines = 30;
+    private const int KeepLines = 320;
 
     public MsgView()
     {
