@@ -49,7 +49,8 @@ public partial class MsgView : ReactiveUserControl<MsgViewModel>
 
         var end = txtMsg.Document.TextLength;
         txtMsg.CaretOffset = end;
-        txtMsg.SelectionStart = txtMsg.SelectionEnd = end;
+        txtMsg.Select(end, 0);          // 这里替代 SelectionStart/End
+
         txtMsg.AppendText(msg.ToString());
 
         if (togScrollToEnd.IsChecked ?? true)
