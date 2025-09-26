@@ -63,6 +63,12 @@ public partial class MsgView : ReactiveUserControl<MsgViewModel>
         txtMsg.AppendText("----- Message cleared -----\n");
     }
 
+    private void menuMsgViewSelectAll_Click(object? sender, RoutedEventArgs e)
+    {
+        txtMsg.Focus();
+        txtMsg.SelectAll();
+    }
+
     private async void menuMsgViewCopy_Click(object? sender, RoutedEventArgs e)
     {
         var data = txtMsg.SelectedText.TrimEx();
