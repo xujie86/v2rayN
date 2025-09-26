@@ -12,7 +12,7 @@ public class MsgViewModel : MyReactiveObject
     private readonly ConcurrentQueue<string> _queueMsg = new();
     private volatile bool _lastMsgFilterNotAvailable;
     private int _showLock = 0; // 0 = unlocked, 1 = locked
-    public int NumMaxMsg { get; } = 50;
+    public int NumMaxMsg { get; } = 320;
 
     [Reactive]
     public string MsgFilter { get; set; }
@@ -71,7 +71,8 @@ public class MsgViewModel : MyReactiveObject
                 sb.Append(line);
             }
 
-            await _updateView?.Invoke(EViewAction.DispatcherShowMsg, sb.ToString());
+            var payload = KeepLastLines(sb.ToString(), NumMaxMsg);
+            await _updateView?.Invoke(EViewAction.DispatcherShowMsg, payload);
         }
         finally
         {
@@ -114,5 +115,21 @@ public class MsgViewModel : MyReactiveObject
     {
         _config.MsgUIItem.MainMsgFilter = MsgFilter;
         _lastMsgFilterNotAvailable = false;
+    }
+
+    private static string KeepLastLines(string text, int keepLines)
+    {
+        if (keepLines <= 0 || string.IsNullOrEmpty(text)) return string.Empty;
+        int count = 0;
+        for (int i = text.Length - 1; i >= 0; i--)
+        {
+            if (text[i] == '\n')
+            {
+                count++;
+                if (count == keepLines)
+                    return text.AsSpan(i + 1).ToString();
+            }
+        }
+        return text;
     }
 }
