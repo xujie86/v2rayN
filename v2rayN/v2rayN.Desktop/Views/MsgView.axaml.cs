@@ -59,8 +59,6 @@ public partial class MsgView : ReactiveUserControl<MsgViewModel>
 
     public void ClearMsg()
     {
-        ViewModel?.ClearMsg();
-
         txtMsg.Text = string.Empty;
         txtMsg.AppendText("----- Message cleared -----\n");
     }
