@@ -1,6 +1,6 @@
 using System;
-using System.Reflection;
-using Avalonia;
+using System.Collections.Generic;
+using System.IO;
 using Avalonia.Media;
 
 namespace v2rayN.Desktop.Common;
@@ -9,12 +9,7 @@ public static class AppBuilderExtension
 {
     public static AppBuilder WithFontByDefault(this AppBuilder appBuilder)
     {
-        var asmName = Assembly.GetExecutingAssembly().GetName().Name 
-                      ?? "v2rayN";
-
-        var notoScUri = $"avares://{asmName}/Assets/Fonts#Noto Sans SC";
-
-        var notoEmojiUri = $"avares://{asmName}/Assets/Fonts#Noto Color Emoji";
+        var scUri = Path.Combine(Global.AvaAssets, "Fonts#Noto Sans SC");
 
         if (!OperatingSystem.IsLinux())
         {
@@ -24,26 +19,28 @@ public static class AppBuilderExtension
                 {
                     new FontFallback
                     {
-                        FontFamily = new FontFamily(notoScUri)
+                        FontFamily = new FontFamily(scUri)
                     }
                 }
             });
         }
 
+        var fallbacks = new List<FontFallback>();
+
+        var emojiUri = Path.Combine(Global.AvaAssets, "Fonts#Noto Color Emoji");
+        fallbacks.Add(new FontFallback
+        {
+            FontFamily = new FontFamily(emojiUri)
+        });
+
+        fallbacks.Add(new FontFallback
+        {
+            FontFamily = new FontFamily(scUri)
+        });
+
         return appBuilder.With(new FontManagerOptions
         {
-            DefaultFamilyName = notoScUri,
-            FontFallbacks = new[]
-            {
-                new FontFallback
-                {
-                    FontFamily = new FontFamily(notoEmojiUri)
-                },
-                new FontFallback
-                {
-                    FontFamily = new FontFamily(notoScUri)
-                }
-            }
+            FontFallbacks = fallbacks.ToArray()
         });
     }
 }
