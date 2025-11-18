@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
@@ -50,6 +50,10 @@
 		<None Update="v2rayN.icns">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(RuntimeIdentifier)' != '' and !$([MSBuild]::StartsWith($(RuntimeIdentifier), 'linux-'))">
+		<AvaloniaResource Remove="Assets\Fonts\NotoColorEmoji-Regular.ttf" />
 	</ItemGroup>
 
 </Project>
