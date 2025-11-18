@@ -1,5 +1,5 @@
 using System;
-using System.IO;
+using System.Reflection;
 using Avalonia;
 using Avalonia.Media;
 
@@ -9,28 +9,41 @@ public static class AppBuilderExtension
 {
     public static AppBuilder WithFontByDefault(this AppBuilder appBuilder)
     {
+        var asmName = Assembly.GetExecutingAssembly().GetName().Name 
+                      ?? "v2rayN";
+
+        var notoScUri = $"avares://{asmName}/Assets/Fonts#Noto Sans SC";
+
+        var notoEmojiUri = $"avares://{asmName}/Assets/Fonts#Noto Color Emoji";
+
         if (!OperatingSystem.IsLinux())
         {
-            var scUri = Path.Combine(Global.AvaAssets, "Fonts#Noto Sans SC");
-
             return appBuilder.With(new FontManagerOptions
             {
                 FontFallbacks = new[]
                 {
                     new FontFallback
                     {
-                        FontFamily = new FontFamily(scUri)
+                        FontFamily = new FontFamily(notoScUri)
                     }
                 }
             });
         }
 
-        var scLinuxUri    = Path.Combine(Global.AvaAssets, "Fonts#Noto Sans SC");
-        var emojiLinuxUri = Path.Combine(Global.AvaAssets, "Fonts#Noto Color Emoji");
-
         return appBuilder.With(new FontManagerOptions
         {
-            FontFallbacks = null
+            DefaultFamilyName = notoScUri,
+            FontFallbacks = new[]
+            {
+                new FontFallback
+                {
+                    FontFamily = new FontFamily(notoEmojiUri)
+                },
+                new FontFallback
+                {
+                    FontFamily = new FontFamily(notoScUri)
+                }
+            }
         });
     }
 }
