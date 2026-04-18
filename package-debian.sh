@@ -9,7 +9,7 @@ BUILD_FROM=""
 XRAY_VER="${XRAY_VER:-}"
 SING_VER="${SING_VER:-}"
 
-MIN_KERNEL="6.11"
+MIN_KERNEL="6.12"
 PKGROOT="v2rayN-publish"
 PROJECT_HINT="v2rayN.Desktop/v2rayN.Desktop.csproj"
 OUTPUT_DIR="${HOME}/debbuild"
@@ -21,7 +21,6 @@ HOST_ARCH=""
 SCRIPT_DIR=""
 PROJECT=""
 VERSION=""
-BUILT_ALL=0
 
 declare -a BUILT_DEBS=()
 
@@ -744,7 +743,6 @@ main() {
   resolve_version
 
   mapfile -t targets < <(select_targets)
-  [[ "${ARCH_OVERRIDE:-}" == "all" ]] && BUILT_ALL=1 || BUILT_ALL=0
 
   for arch in "${targets[@]}"; do
     build_one_target "$arch"
