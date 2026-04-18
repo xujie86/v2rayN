@@ -9,7 +9,7 @@ BUILD_FROM=""
 XRAY_VER="${XRAY_VER:-}"
 SING_VER="${SING_VER:-}"
 
-MIN_KERNEL="6.11"
+MIN_KERNEL="6.12"
 
 OS_ID=""
 OS_NAME=""
@@ -461,7 +461,7 @@ stage_runtime_assets() {
 
   if [[ "$FORCE_NETCORE" -eq 0 ]]; then
     if populate_assets_zip_mode "$outroot" "$rid"; then
-      echo "[*] Using v2rayN bundle bin assets."
+      echo "[*] Using v2rayN bundle archive."
       return 0
     fi
     echo "[*] Bundle failed, fallback to separate core + rules."
