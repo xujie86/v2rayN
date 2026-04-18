@@ -9,8 +9,6 @@ XRAY_VER="${XRAY_VER:-}"
 SING_VER="${SING_VER:-}"
 
 MIN_KERNEL="5.10"
-TARGET_FRAMEWORK="net10.0"
-PKGROOT_NAME="v2rayN-publish"
 DOTNET_RISCV_VERSION="10.0.105"
 DOTNET_RISCV_BASE="https://github.com/filipnavara/dotnet-riscv/releases/download"
 DOTNET_RISCV_FILE="dotnet-sdk-${DOTNET_RISCV_VERSION}-linux-riscv64.tar.gz"
@@ -25,14 +23,15 @@ HOST_ARCH=""
 SCRIPT_DIR=""
 PROJECT=""
 VERSION=""
+BUILT_ALL=0
 
-declare -a BUILT_PACKAGES=()
+declare -a BUILT_RPMS=()
 
 parse_args() {
-  local first="${1:-}"
+  local first_arg="${1:-}"
 
-  if [[ -n "$first" && "$first" != --* ]]; then
-    VERSION_ARG="$first"
+  if [[ -n "$first_arg" && "$first_arg" != --* ]]; then
+    VERSION_ARG="$first_arg"
     shift || true
   fi
 
@@ -86,8 +85,8 @@ detect_environment() {
       ;;
   esac
 
-  local current_kernel
-  local lowest
+  local current_kernel=""
+  local lowest=""
 
   current_kernel="$(uname -r)"
   lowest="$(printf '%s\n%s\n' "$MIN_KERNEL" "$current_kernel" | sort -V | head -n1)"
@@ -189,28 +188,30 @@ get_latest_tag_prerelease() {
     | sed 's/^v//'
 }
 
+fetch_latest_release_version() {
+  local repo="$1"
+
+  curl -fsSL "https://api.github.com/repos/${repo}/releases/latest" \
+    | jq -re '.tag_name' \
+    | sed 's/^v//'
+}
+
 git_try_checkout() {
   local want="$1"
-  local ref=""
 
-  if git rev-parse --git-dir >/dev/null 2>&1; then
-    git fetch --tags --force --prune --depth=1 || true
+  git rev-parse --git-dir >/dev/null 2>&1 || return 1
+  git fetch --tags --force --prune --depth=1 || true
 
-    if git rev-parse "refs/tags/${want}" >/dev/null 2>&1; then
-      ref="${want}"
+  if git rev-parse "refs/tags/${want}" >/dev/null 2>&1; then
+    echo "[OK] Found ref '${want}', checking out..."
+    git checkout -f "${want}"
+
+    if [[ -f .gitmodules ]]; then
+      git submodule sync --recursive || true
+      git submodule update --init --recursive || true
     fi
 
-    if [[ -n "$ref" ]]; then
-      echo "[OK] Found ref '${ref}', checking out..."
-      git checkout -f "${ref}"
-
-      if [[ -f .gitmodules ]]; then
-        git submodule sync --recursive || true
-        git submodule update --init --recursive || true
-      fi
-
-      return 0
-    fi
+    return 0
   fi
 
   return 1
@@ -246,7 +247,7 @@ apply_channel_or_keep() {
 resolve_version() {
   if git rev-parse --git-dir >/dev/null 2>&1; then
     if [[ -n "${VERSION_ARG:-}" ]]; then
-      local clean_ver
+      local clean_ver=""
       clean_ver="${VERSION_ARG#v}"
 
       if git_try_checkout "$clean_ver"; then
@@ -267,7 +268,7 @@ resolve_version() {
   echo "[*] GUI version resolved as: ${VERSION}"
 }
 
-apply_arch_patch() {
+apply_riscv_patch() {
   local f=""
 
   find . -type f \( -name "*.csproj" -o -name "*.props" -o -name "*.targets" \) \
@@ -338,14 +339,10 @@ copy_skiasharp_native_riscv64() {
   mkdir -p "$outdir"
 
   skia_so="$(find "$HOME/.nuget/packages" -path "*/skiasharp.nativeassets.linux/${SKIA_VER}/runtimes/linux-riscv64/native/libSkiaSharp.so" | head -n1 || true)"
-  if [[ -z "$skia_so" ]]; then
-    skia_so="$(find "$HOME/.nuget/packages" -path "*/runtimes/linux-riscv64/native/libSkiaSharp.so" | head -n1 || true)"
-  fi
+  [[ -n "$skia_so" ]] || skia_so="$(find "$HOME/.nuget/packages" -path "*/runtimes/linux-riscv64/native/libSkiaSharp.so" | head -n1 || true)"
 
   harfbuzz_so="$(find "$HOME/.nuget/packages" -path "*/harfbuzzsharp.nativeassets.linux/${HARFBUZZ_VER}/runtimes/linux-riscv64/native/libHarfBuzzSharp.so" | head -n1 || true)"
-  if [[ -z "$harfbuzz_so" ]]; then
-    harfbuzz_so="$(find "$HOME/.nuget/packages" -path "*/runtimes/linux-riscv64/native/libHarfBuzzSharp.so" | head -n1 || true)"
-  fi
+  [[ -n "$harfbuzz_so" ]] || harfbuzz_so="$(find "$HOME/.nuget/packages" -path "*/runtimes/linux-riscv64/native/libHarfBuzzSharp.so" | head -n1 || true)"
 
   if [[ -n "$skia_so" && -f "$skia_so" ]]; then
     echo "[+] Copy libSkiaSharp.so from NuGet cache"
@@ -362,13 +359,6 @@ copy_skiasharp_native_riscv64() {
   fi
 }
 
-prepare_native_artifacts() {
-  local outroot="$1"
-
-  copy_skiasharp_native_riscv64 "$outroot" || echo "[!] SkiaSharp native copy failed (skipped)"
-  build_sqlite_native_riscv64 "$outroot" || echo "[!] sqlite native build failed (skipped)"
-}
-
 download_xray() {
   local outdir="$1"
   local rid="$2"
@@ -378,14 +368,7 @@ download_xray() {
   local zipname="xray.zip"
 
   mkdir -p "$outdir"
-
-  if [[ -z "$ver" ]]; then
-    ver="$(curl -fsSL https://api.github.com/repos/XTLS/Xray-core/releases/latest \
-      | grep -Eo '"tag_name":\s*"v[^"]+"' \
-      | sed -E 's/.*"v([^"]+)".*/\1/' \
-      | head -n1)" || true
-  fi
-
+  [[ -n "$ver" ]] || ver="$(fetch_latest_release_version "XTLS/Xray-core" || true)"
   [[ -n "$ver" ]] || { echo "[xray] Failed to get version"; return 1; }
 
   case "$rid" in
@@ -413,14 +396,7 @@ download_singbox() {
   local cronet=""
 
   mkdir -p "$outdir"
-
-  if [[ -z "$ver" ]]; then
-    ver="$(curl -fsSL https://api.github.com/repos/SagerNet/sing-box/releases/latest \
-      | grep -Eo '"tag_name":\s*"v[^"]+"' \
-      | sed -E 's/.*"v([^"]+)".*/\1/' \
-      | head -n1)" || true
-  fi
-
+  [[ -n "$ver" ]] || ver="$(fetch_latest_release_version "SagerNet/sing-box" || true)"
   [[ -n "$ver" ]] || { echo "[sing-box] Failed to get version"; return 1; }
 
   case "$rid" in
@@ -447,21 +423,12 @@ download_singbox() {
 
 unify_geo_layout() {
   local outroot="$1"
-  local names=(
-    geosite.dat
-    geoip.dat
-    geoip-only-cn-private.dat
-    Country.mmdb
-    geoip.metadb
-  )
-  local n
+  local n=""
 
   mkdir -p "$outroot/bin"
 
-  for n in "${names[@]}"; do
-    if [[ -f "$outroot/bin/xray/$n" ]]; then
-      mv -f "$outroot/bin/xray/$n" "$outroot/bin/$n"
-    fi
+  for n in geosite.dat geoip.dat geoip-only-cn-private.dat Country.mmdb geoip.metadb; do
+    [[ -f "$outroot/bin/xray/$n" ]] && mv -f "$outroot/bin/xray/$n" "$outroot/bin/$n"
   done
 }
 
@@ -469,7 +436,7 @@ download_geo_assets() {
   local outroot="$1"
   local bin_dir="$outroot/bin"
   local srss_dir="$bin_dir/srss"
-  local f
+  local f=""
 
   mkdir -p "$bin_dir" "$srss_dir"
 
@@ -547,13 +514,19 @@ populate_assets_netcore_mode() {
   local outroot="$1"
   local rid="$2"
 
-  if [[ "$WITH_CORE" == "xray" || "$WITH_CORE" == "both" ]]; then
-    download_xray "$outroot/bin/xray" "$rid" || echo "[!] xray download failed (skipped)"
-  fi
+  mkdir -p "$outroot/bin/xray" "$outroot/bin/sing_box"
 
-  if [[ "$WITH_CORE" == "sing-box" || "$WITH_CORE" == "both" ]]; then
-    download_singbox "$outroot/bin/sing_box" "$rid" || echo "[!] sing-box download failed (skipped)"
-  fi
+  case "$WITH_CORE" in
+    xray|both)
+      download_xray "$outroot/bin/xray" "$rid" || echo "[!] xray download failed (skipped)"
+      ;;
+  esac
+
+  case "$WITH_CORE" in
+    sing-box|both)
+      download_singbox "$outroot/bin/sing_box" "$rid" || echo "[!] sing-box download failed (skipped)"
+      ;;
+  esac
 
   download_geo_assets "$outroot" || echo "[!] Geo rules download failed (skipped)"
 }
@@ -562,30 +535,30 @@ stage_runtime_assets() {
   local outroot="$1"
   local rid="$2"
 
-  mkdir -p "$outroot/bin/xray" "$outroot/bin/sing_box"
-
   if [[ "$FORCE_NETCORE" -eq 0 ]]; then
     if populate_assets_zip_mode "$outroot" "$rid"; then
       echo "[*] Using v2rayN bundle archive."
-    else
-      echo "[*] Bundle failed, fallback to separate core + rules."
-      populate_assets_netcore_mode "$outroot" "$rid"
+      return 0
     fi
+    echo "[*] Bundle failed, fallback to separate core + rules."
   else
     echo "[*] --netcore specified: use separate core + rules."
-    populate_assets_netcore_mode "$outroot" "$rid"
   fi
+
+  populate_assets_netcore_mode "$outroot" "$rid"
 }
 
 describe_target() {
   local short="$1"
+  declare -n _rid="$2"
+  declare -n _rpm_target="$3"
+  declare -n _archdir="$4"
 
   case "$short" in
     riscv64)
-      printf '%s\n' \
-        "linux-riscv64" \
-        "riscv64" \
-        "riscv64"
+      _rid="linux-riscv64"
+      _rpm_target="riscv64"
+      _archdir="riscv64"
       ;;
     *)
       echo "Unknown arch '$short' (use riscv64)" >&2
@@ -594,23 +567,24 @@ describe_target() {
   esac
 }
 
-select_targets() {
-  printf '%s\n' riscv64
-}
-
 publish_binary() {
   local rid="$1"
 
-  dotnet clean "$PROJECT" -c Release -p:TargetFramework="${TARGET_FRAMEWORK}"
-  rm -rf "$(dirname "$PROJECT")/bin/Release/${TARGET_FRAMEWORK}" || true
+  dotnet clean "$PROJECT" -c Release -p:TargetFramework=net10.0
+  rm -rf "$(dirname "$PROJECT")/bin/Release/net10.0" || true
 
-  dotnet restore "$PROJECT" -r "$rid" -p:TargetFramework="${TARGET_FRAMEWORK}"
+  dotnet restore "$PROJECT" -r "$rid" -p:TargetFramework=net10.0
   dotnet publish "$PROJECT" \
     -c Release \
     -r "$rid" \
-    -p:TargetFramework="${TARGET_FRAMEWORK}" \
+    -p:TargetFramework=net10.0 \
     -p:PublishSingleFile=false \
     -p:SelfContained=true
+}
+
+cleanup_workdir() {
+  local workdir="${1:-}"
+  [[ -n "$workdir" ]] && rm -rf "$workdir"
 }
 
 package_binary() {
@@ -620,6 +594,7 @@ package_binary() {
   local archdir="$4"
 
   local pubdir=""
+  local pkgroot="v2rayN-publish"
   local workdir=""
   local topdir=""
   local specdir=""
@@ -629,30 +604,32 @@ package_binary() {
   local icon_candidate=""
   local f=""
 
-  pubdir="$(dirname "$PROJECT")/bin/Release/${TARGET_FRAMEWORK}/${rid}/publish"
+  pubdir="$(dirname "$PROJECT")/bin/Release/net10.0/${rid}/publish"
   [[ -d "$pubdir" ]] || { echo "Publish directory not found: $pubdir"; return 1; }
 
   workdir="$(mktemp -d)"
-  trap '[[ -n "${workdir:-}" ]] && rm -rf "$workdir"; trap - RETURN' RETURN
+  trap 'cleanup_workdir "$workdir"' RETURN
 
   rpmdev-setuptree
   topdir="${HOME}/rpmbuild"
   specdir="${topdir}/SPECS"
   sourcedir="${topdir}/SOURCES"
 
-  mkdir -p "$workdir/$PKGROOT_NAME"
-  cp -a "$pubdir/." "$workdir/$PKGROOT_NAME/"
+  mkdir -p "$workdir/$pkgroot"
+  cp -a "$pubdir/." "$workdir/$pkgroot/"
+
+  copy_skiasharp_native_riscv64 "$workdir/$pkgroot" || echo "[!] SkiaSharp native copy failed (skipped)"
+  build_sqlite_native_riscv64 "$workdir/$pkgroot" || echo "[!] sqlite native build failed (skipped)"
 
   project_dir="$(cd "$(dirname "$PROJECT")" && pwd)"
   icon_candidate="$project_dir/v2rayN.png"
   [[ -f "$icon_candidate" ]] || { echo "Required icon not found: $icon_candidate"; return 1; }
-  cp "$icon_candidate" "$workdir/$PKGROOT_NAME/v2rayn.png"
+  cp "$icon_candidate" "$workdir/$pkgroot/v2rayn.png"
 
-  prepare_native_artifacts "$workdir/$PKGROOT_NAME"
-  stage_runtime_assets "$workdir/$PKGROOT_NAME" "$rid"
+  stage_runtime_assets "$workdir/$pkgroot" "$rid"
 
   mkdir -p "$sourcedir" "$specdir"
-  tar -C "$workdir" -czf "$sourcedir/$PKGROOT_NAME.tar.gz" "$PKGROOT_NAME"
+  tar -C "$workdir" -czf "$sourcedir/$pkgroot.tar.gz" "$pkgroot"
 
   specfile="$specdir/v2rayN.spec"
 
@@ -753,7 +730,7 @@ install -m0644 %{_builddir}/__PKGROOT__/v2rayn.png %{buildroot}%{_datadir}/icons
 SPEC
 
   sed -i "s/__VERSION__/${VERSION}/g" "$specfile"
-  sed -i "s/__PKGROOT__/${PKGROOT_NAME}/g" "$specfile"
+  sed -i "s/__PKGROOT__/${pkgroot}/g" "$specfile"
 
   rpmbuild -ba "$specfile" --target "$rpm_target"
 
@@ -761,22 +738,21 @@ SPEC
   for f in "${topdir}/RPMS/${archdir}/v2rayN-${VERSION}-1"*.rpm; do
     [[ -e "$f" ]] || continue
     echo "  $f"
-    BUILT_PACKAGES+=("$f")
+    BUILT_RPMS+=("$f")
   done
+}
+
+select_targets() {
+  printf '%s\n' riscv64
 }
 
 build_one_target() {
   local short="$1"
-  local meta=()
   local rid=""
   local rpm_target=""
   local archdir=""
 
-  mapfile -t meta < <(describe_target "$short") || return 1
-
-  rid="${meta[0]}"
-  rpm_target="${meta[1]}"
-  archdir="${meta[2]}"
+  describe_target "$short" rid rpm_target archdir || return 1
 
   echo "[*] Building for target: $short  (RID=$rid, RPM --target $rpm_target)"
 
@@ -787,16 +763,14 @@ build_one_target() {
 print_summary() {
   echo ""
   echo "================ Build Summary ================"
-
-  if [[ "${#BUILT_PACKAGES[@]}" -gt 0 ]]; then
-    local rp
-    for rp in "${BUILT_PACKAGES[@]}"; do
+  if [[ "${#BUILT_RPMS[@]}" -gt 0 ]]; then
+    local rp=""
+    for rp in "${BUILT_RPMS[@]}"; do
       echo "$rp"
     done
   else
     echo "No RPMs detected in summary (check build logs above)."
   fi
-
   echo "=============================================="
 }
 
@@ -809,7 +783,7 @@ main() {
   install_dependencies
   prepare_workspace
   resolve_version
-  apply_arch_patch
+  apply_riscv_patch
 
   mapfile -t targets < <(select_targets)
 
