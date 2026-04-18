@@ -12,7 +12,6 @@ SING_VER="${SING_VER:-}"
 MIN_KERNEL="6.11"
 TARGET_FRAMEWORK="net8.0"
 PKGROOT_NAME="v2rayN-publish"
-OUTPUT_DIR="$HOME/debbuild"
 
 OS_ID=""
 OS_NAME=""
@@ -65,12 +64,12 @@ detect_environment() {
   HOST_ARCH="$(uname -m)"
 
   case "$OS_ID" in
-    debian)
+    rhel|rocky|almalinux|fedora|centos)
       echo "Detected supported system: ${OS_NAME:-$OS_ID} ${OS_VERSION_ID:-}"
       ;;
     *)
       echo "Unsupported system: ${OS_NAME:-unknown} (${OS_ID:-unknown})."
-      echo "This script only supports: Debian."
+      echo "This script only supports: RHEL / Rocky / AlmaLinux / Fedora / CentOS."
       exit 1
       ;;
   esac
@@ -99,45 +98,15 @@ detect_environment() {
 
 install_dependencies() {
   local install_ok=0
-  local foreign_arch=""
 
-  mkdir -p "$OUTPUT_DIR"
-
-  if command -v apt-get >/dev/null 2>&1; then
-    sudo apt-get update
-    sudo apt-get -y install \
-      curl unzip tar jq rsync ca-certificates git dpkg-dev fakeroot file \
-      desktop-file-utils xdg-utils wget
-
-    case "$HOST_ARCH" in
-      aarch64) foreign_arch="amd64" ;;
-      x86_64)  foreign_arch="arm64" ;;
-      *)       echo "Only supports aarch64 / x86_64"; exit 1 ;;
-    esac
-
-    sudo dpkg --add-architecture "$foreign_arch" || true
-    sudo apt-get update
-    sudo apt-get -y install \
-      "libc6:${foreign_arch}" \
-      "libgcc-s1:${foreign_arch}" \
-      "libstdc++6:${foreign_arch}" \
-      "zlib1g:${foreign_arch}" \
-      "libfontconfig1:${foreign_arch}"
-
-    wget -q https://dot.net/v1/dotnet-install.sh
-    chmod +x dotnet-install.sh
-    ./dotnet-install.sh --channel 8.0 --install-dir "$HOME/.dotnet"
-
-    export PATH="$HOME/.dotnet:$PATH"
-    export DOTNET_ROOT="$HOME/.dotnet"
-
-    dotnet --info >/dev/null 2>&1 && install_ok=1
+  if command -v dnf >/dev/null 2>&1; then
+    sudo dnf -y install rpm-build rpmdevtools curl unzip tar jq rsync dotnet-sdk-8.0 \
+      && install_ok=1
   fi
 
   if [[ "$install_ok" -ne 1 ]]; then
     echo "Could not auto-install dependencies for '$OS_ID'. Make sure these are available:"
-    echo "dotnet-sdk 8.x, curl, unzip, tar, rsync, git, dpkg-deb, desktop-file-utils, xdg-utils"
-    exit 1
+    echo "dotnet-sdk 8.x, curl, unzip, tar, rsync, rpm, rpmdevtools, rpm-build (on Red Hat branch)"
   fi
 }
 
@@ -487,7 +456,7 @@ stage_runtime_assets() {
 
   if [[ "$FORCE_NETCORE" -eq 0 ]]; then
     if populate_assets_zip_mode "$outroot" "$rid"; then
-      echo "[*] Using v2rayN bundle bin assets."
+      echo "[*] Using v2rayN bundle archive."
     else
       echo "[*] Bundle failed, fallback to separate core + rules."
       populate_assets_netcore_mode "$outroot" "$rid"
@@ -505,14 +474,14 @@ describe_target() {
     x64)
       printf '%s\n' \
         "linux-x64" \
-        "amd64" \
-        "amd64"
+        "x86_64" \
+        "x86_64"
       ;;
     arm64)
       printf '%s\n' \
         "linux-arm64" \
-        "arm64" \
-        "arm64"
+        "aarch64" \
+        "aarch64"
       ;;
     *)
       echo "Unknown arch '$short' (use x64|arm64)" >&2
@@ -563,22 +532,18 @@ publish_binary() {
 package_binary() {
   local short="$1"
   local rid="$2"
-  local deb_arch="$3"
-  local outdir_name="$4"
+  local rpm_target="$3"
+  local archdir="$4"
 
   local pubdir=""
   local workdir=""
-  local stage=""
-  local debian_dir=""
+  local topdir=""
+  local specdir=""
+  local sourcedir=""
+  local specfile=""
   local project_dir=""
   local icon_candidate=""
-  local shlibs_depends=""
-  local extra_depends=""
-  local final_depends=""
-  local multiarch=""
-  local sys_libdir=""
-  local sys_usrlibdir=""
-  local deb_out=""
+  local f=""
 
   pubdir="$(dirname "$PROJECT")/bin/Release/${TARGET_FRAMEWORK}/${rid}/publish"
   [[ -d "$pubdir" ]] || { echo "Publish directory not found: $pubdir"; return 1; }
@@ -586,38 +551,82 @@ package_binary() {
   workdir="$(mktemp -d)"
   trap '[[ -n "${workdir:-}" ]] && rm -rf "$workdir"; trap - RETURN' RETURN
 
-  stage="$workdir/${PKGROOT_NAME}_${VERSION}_${deb_arch}"
-  debian_dir="$stage/DEBIAN"
+  rpmdev-setuptree
+  topdir="${HOME}/rpmbuild"
+  specdir="${topdir}/SPECS"
+  sourcedir="${topdir}/SOURCES"
 
-  mkdir -p "$stage/opt/v2rayN"
-  mkdir -p "$stage/usr/bin"
-  mkdir -p "$stage/usr/share/applications"
-  mkdir -p "$stage/usr/share/icons/hicolor/256x256/apps"
-  mkdir -p "$debian_dir"
-
-  cp -a "$pubdir/." "$stage/opt/v2rayN/"
+  mkdir -p "$workdir/$PKGROOT_NAME"
+  cp -a "$pubdir/." "$workdir/$PKGROOT_NAME/"
 
   project_dir="$(cd "$(dirname "$PROJECT")" && pwd)"
   icon_candidate="$project_dir/v2rayN.png"
-  [[ -f "$icon_candidate" ]] && cp "$icon_candidate" "$stage/usr/share/icons/hicolor/256x256/apps/v2rayn.png" || true
+  [[ -f "$icon_candidate" ]] || { echo "Required icon not found: $icon_candidate"; return 1; }
+  cp "$icon_candidate" "$workdir/$PKGROOT_NAME/v2rayn.png"
 
-  prepare_native_artifacts "$stage/opt/v2rayN"
-  stage_runtime_assets "$stage/opt/v2rayN" "$rid"
+  prepare_native_artifacts "$workdir/$PKGROOT_NAME"
+  stage_runtime_assets "$workdir/$PKGROOT_NAME" "$rid"
 
-  install -m 755 /dev/stdin "$stage/usr/bin/v2rayn" <<'EOF'
-#!/usr/bin/env bash
+  mkdir -p "$sourcedir" "$specdir"
+  tar -C "$workdir" -czf "$sourcedir/$PKGROOT_NAME.tar.gz" "$PKGROOT_NAME"
+
+  specfile="$specdir/v2rayN.spec"
+
+  cat > "$specfile" <<'SPEC'
+%global debug_package %{nil}
+%undefine _debuginfo_subpackages
+%undefine _debugsource_packages
+%global __requires_exclude ^liblttng-ust\.so\..*$
+
+Name:           v2rayN
+Version:        __VERSION__
+Release:        1%{?dist}
+Summary:        v2rayN (Avalonia) GUI client for Linux (x86_64/aarch64)
+License:        GPL-3.0-only
+URL:            https://github.com/2dust/v2rayN
+BugURL:         https://github.com/2dust/v2rayN/issues
+ExclusiveArch:  aarch64 x86_64
+Source0:        __PKGROOT__.tar.gz
+
+Requires:       cairo, pango, openssl, mesa-libEGL, mesa-libGL
+Requires:       glibc >= 2.34
+Requires:       fontconfig >= 2.13.1
+Requires:       desktop-file-utils >= 0.26
+Requires:       xdg-utils >= 1.1.3
+Requires:       coreutils >= 8.32
+Requires:       bash >= 5.1
+Requires:       freetype >= 2.10
+
+%description
+v2rayN Linux for Red Hat Enterprise Linux
+Support vless / vmess / Trojan / http / socks / Anytls / Hysteria2 / Shadowsocks / tuic / WireGuard
+Support Red Hat Enterprise Linux / Fedora Linux / Rocky Linux / AlmaLinux / CentOS
+For more information, Please visit our website
+https://github.com/2dust/v2rayN
+
+%prep
+%setup -q -n __PKGROOT__
+
+%build
+
+%install
+install -dm0755 %{buildroot}/opt/v2rayN
+cp -a * %{buildroot}/opt/v2rayN/
+
+find %{buildroot}/opt/v2rayN -type d -exec chmod 0755 {} +
+find %{buildroot}/opt/v2rayN -type f -exec chmod 0644 {} +
+[ -f %{buildroot}/opt/v2rayN/v2rayN ] && chmod 0755 %{buildroot}/opt/v2rayN/v2rayN || :
+
+install -dm0755 %{buildroot}%{_bindir}
+install -m0755 /dev/stdin %{buildroot}%{_bindir}/v2rayn << 'EOF'
+#!/usr/bin/bash
 set -euo pipefail
 DIR="/opt/v2rayN"
-cd "$DIR"
 
-if [[ -x "$DIR/v2rayN" ]]; then
-  exec "$DIR/v2rayN" "$@"
-fi
+if [[ -x "$DIR/v2rayN" ]]; then exec "$DIR/v2rayN" "$@"; fi
 
 for dll in v2rayN.Desktop.dll v2rayN.dll; do
-  if [[ -f "$DIR/$dll" ]]; then
-    exec /usr/bin/dotnet "$DIR/$dll" "$@"
-  fi
+  if [[ -f "$DIR/$dll" ]]; then exec /usr/bin/dotnet "$DIR/$dll" "$@"; fi
 done
 
 echo "v2rayN launcher: no executable found in $DIR" >&2
@@ -625,146 +634,88 @@ ls -l "$DIR" >&2 || true
 exit 1
 EOF
 
-  extra_depends="libc6 (>= 2.34), fontconfig (>= 2.13.1), desktop-file-utils (>= 0.26), xdg-utils (>= 1.1.3), coreutils (>= 8.32), bash (>= 5.1), libfreetype6 (>= 2.11)"
-
-  mkdir -p "$workdir/debian"
-  cat > "$workdir/debian/control" <<EOF
-Source: v2rayn
-Section: net
-Priority: optional
-Maintainer: 2dust <noreply@github.com>
-Standards-Version: 4.7.0
-
-Package: v2rayn
-Architecture: ${deb_arch}
-Description: v2rayN
-EOF
-
-  multiarch="$(dpkg-architecture -a"$deb_arch" -qDEB_HOST_MULTIARCH)"
-  sys_libdir="/lib/$multiarch"
-  sys_usrlibdir="/usr/lib/$multiarch"
-
-  : > "$debian_dir/substvars"
-
-  mapfile -t ELF_FILES < <(
-    find "$stage/opt/v2rayN" -type f \( -name "*.so*" -o -perm -111 \) ! -name 'libcoreclrtraceptprovider.so'
-  )
-
-  if [[ "${#ELF_FILES[@]}" -gt 0 ]]; then
-    (
-      cd "$workdir"
-      dpkg-shlibdeps \
-        -l"$stage/opt/v2rayN" \
-        -l"$sys_libdir" \
-        -l"$sys_usrlibdir" \
-        -T"$debian_dir/substvars" \
-        "${ELF_FILES[@]}"
-    ) >/dev/null 2>&1 || true
-  fi
-
-  shlibs_depends="$(sed -n 's/^shlibs:Depends=//p' "$debian_dir/substvars" | head -n1 || true)"
-
-  if [[ -n "$shlibs_depends" ]]; then
-    shlibs_depends="$(echo "$shlibs_depends" \
-      | sed -E 's/ *\([^)]*\)//g' \
-      | sed -E 's/ *, */, /g' \
-      | sed -E 's/^, *//; s/, *$//')"
-    final_depends="${shlibs_depends}, ${extra_depends}"
-  else
-    final_depends="${extra_depends}"
-  fi
-
-  install -m 644 /dev/stdin "$stage/usr/share/applications/v2rayn.desktop" <<'EOF'
+install -dm0755 %{buildroot}%{_datadir}/applications
+install -m0644 /dev/stdin %{buildroot}%{_datadir}/applications/v2rayn.desktop << 'EOF'
 [Desktop Entry]
 Type=Application
 Name=v2rayN
-Comment=v2rayN for Debian GNU Linux
+Comment=v2rayN for Red Hat Enterprise Linux
 Exec=v2rayn
 Icon=v2rayn
 Terminal=false
 Categories=Network;
 EOF
 
-  cat > "$debian_dir/control" <<EOF
-Package: v2rayn
-Version: ${VERSION}
-Architecture: ${deb_arch}
-Maintainer: 2dust <noreply@github.com>
-Homepage: https://github.com/2dust/v2rayN
-Section: net
-Priority: optional
-Depends: ${final_depends}
-Description: v2rayN (Avalonia) GUI client for Linux
- Support vless / vmess / Trojan / http / socks / Anytls / Hysteria2 /
- Shadowsocks / tuic / WireGuard.
-EOF
+install -dm0755 %{buildroot}%{_datadir}/icons/hicolor/256x256/apps
+install -m0644 %{_builddir}/__PKGROOT__/v2rayn.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/v2rayn.png
 
-  install -m 755 /dev/stdin "$debian_dir/postinst" <<'EOF'
-#!/bin/sh
-set -e
-update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
-if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-  gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
-fi
-exit 0
-EOF
+%post
+/usr/bin/update-desktop-database %{_datadir}/applications >/dev/null 2>&1 || true
+/usr/bin/gtk-update-icon-cache -f %{_datadir}/icons/hicolor >/dev/null 2>&1 || true
 
-  install -m 755 /dev/stdin "$debian_dir/postrm" <<'EOF'
-#!/bin/sh
-set -e
-update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
-if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-  gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
-fi
-exit 0
-EOF
+%postun
+/usr/bin/update-desktop-database %{_datadir}/applications >/dev/null 2>&1 || true
+/usr/bin/gtk-update-icon-cache -f %{_datadir}/icons/hicolor >/dev/null 2>&1 || true
 
-  find "$stage/opt/v2rayN" -type d -exec chmod 0755 {} +
-  find "$stage/opt/v2rayN" -type f -exec chmod 0644 {} +
-  [[ -f "$stage/opt/v2rayN/v2rayN" ]] && chmod 0755 "$stage/opt/v2rayN/v2rayN" || true
+%files
+%{_bindir}/v2rayn
+/opt/v2rayN
+%{_datadir}/applications/v2rayn.desktop
+%{_datadir}/icons/hicolor/256x256/apps/v2rayn.png
+SPEC
 
-  deb_out="$OUTPUT_DIR/v2rayn_${VERSION}_${outdir_name}.deb"
-  dpkg-deb --root-owner-group --build "$stage" "$deb_out"
+  sed -i "s/__VERSION__/${VERSION}/g" "$specfile"
+  sed -i "s/__PKGROOT__/${PKGROOT_NAME}/g" "$specfile"
 
-  echo "Build done for $short. DEB at:"
-  echo "  $deb_out"
-  BUILT_PACKAGES+=("$deb_out")
+  rpmbuild -ba "$specfile" --target "$rpm_target"
+
+  echo "Build done for $short. RPM at:"
+  for f in "${topdir}/RPMS/${archdir}/v2rayN-${VERSION}-1"*.rpm; do
+    [[ -e "$f" ]] || continue
+    echo "  $f"
+    BUILT_PACKAGES+=("$f")
+  done
 }
 
 build_one_target() {
   local short="$1"
   local meta=()
   local rid=""
-  local deb_arch=""
-  local outdir_name=""
+  local rpm_target=""
+  local archdir=""
 
   mapfile -t meta < <(describe_target "$short") || return 1
 
   rid="${meta[0]}"
-  deb_arch="${meta[1]}"
-  outdir_name="${meta[2]}"
+  rpm_target="${meta[1]}"
+  archdir="${meta[2]}"
 
-  echo "[*] Building for target: $short  (RID=$rid, DEB arch=$deb_arch)"
+  echo "[*] Building for target: $short  (RID=$rid, RPM --target $rpm_target)"
 
   publish_binary "$rid"
-  package_binary "$short" "$rid" "$deb_arch" "$outdir_name"
+  package_binary "$short" "$rid" "$rpm_target" "$archdir"
 }
 
 print_summary() {
-  echo ""
-  echo "================ Build Summary ================="
+  local target_count="$1"
 
-  if [[ "${#BUILT_PACKAGES[@]}" -gt 0 ]]; then
-    echo "Output directory: $OUTPUT_DIR"
-    local pkg
-    for pkg in "${BUILT_PACKAGES[@]}"; do
-      echo "$pkg"
-    done
-  else
-    echo "No DEBs detected in summary (check build logs above)."
+  if [[ "$target_count" -lt 2 ]]; then
+    return 0
   fi
 
-  echo "==============================================="
+  echo ""
+  echo "================ Build Summary (both architectures) ================"
+
+  if [[ "${#BUILT_PACKAGES[@]}" -gt 0 ]]; then
+    local rp
+    for rp in "${BUILT_PACKAGES[@]}"; do
+      echo "$rp"
+    done
+  else
+    echo "No RPMs detected in summary (check build logs above)."
+  fi
+
+  echo "===================================================================="
 }
 
 main() {
@@ -784,7 +735,7 @@ main() {
     build_one_target "$arch"
   done
 
-  print_summary
+  print_summary "${#targets[@]}"
 }
 
 main "$@"
