@@ -206,7 +206,7 @@ git_try_checkout() {
     fi
   fi
 
-  return 0
+  return 1
 }
 
 apply_channel_or_keep() {
