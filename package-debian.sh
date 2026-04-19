@@ -499,7 +499,7 @@ publish_binary() {
   local rid="$1"
 
   dotnet clean "$PROJECT" -c Release
-  rm -rf "$(dirname "$PROJECT")/bin/Release/net8.0" || true
+  rm -rf "$(dirname "$PROJECT")/bin/Release/net10.0" || true
   dotnet restore "$PROJECT"
   dotnet publish "$PROJECT" -c Release -r "$rid" -p:PublishSingleFile=false -p:SelfContained=true
 }
@@ -586,7 +586,7 @@ package_binary() {
   local sys_usrlibdir=""
   local deb_out=""
 
-  pubdir="$(dirname "$PROJECT")/bin/Release/net8.0/${rid}/publish"
+  pubdir="$(dirname "$PROJECT")/bin/Release/net10.0/${rid}/publish"
   [[ -d "$pubdir" ]] || { echo "Publish directory not found: $pubdir"; return 1; }
 
   workdir="$(mktemp -d)"
