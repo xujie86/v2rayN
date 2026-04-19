@@ -140,11 +140,10 @@ public class Outboundsettings4Ray
 
     public int? userLevel { get; set; }
 
-    public FragmentItem4Ray? fragment { get; set; }
-
     public string? secretKey { get; set; }
 
-    public Object? address { get; set; }
+    public object? address { get; set; }
+
     public int? port { get; set; }
 
     public List<WireguardPeer4Ray>? peers { get; set; }
@@ -409,11 +408,9 @@ public class KcpSettings4Ray
 
     public int downlinkCapacity { get; set; }
 
-    public bool congestion { get; set; }
+    public int cwndMultiplier { get; set; }
 
-    public int readBufferSize { get; set; }
-
-    public int writeBufferSize { get; set; }
+    public int maxSendingWindow { get; set; }
 }
 
 public class WsSettings4Ray
@@ -503,6 +500,19 @@ public class MaskSettings4Ray
 {
     public string? password { get; set; }
     public string? domain { get; set; }
+    // fragment
+    public string? packets { get; set; }
+    public string? length { get; set; }
+    public string? delay { get; set; }
+    // noise
+    public int? reset { get; set; }
+    public List<NoiseMask4Ray>? noise { get; set; }
+}
+
+public class NoiseMask4Ray
+{
+    public string? rand { get; set; }
+    public string? delay { get; set; }
 }
 
 public class QuicParams4Ray
