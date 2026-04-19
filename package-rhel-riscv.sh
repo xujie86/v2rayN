@@ -262,7 +262,7 @@ apply_riscv_patch() {
   local f=""
 
   find . -type f \( -name "*.csproj" -o -name "*.props" -o -name "*.targets" \) \
-    -exec sed -i 's/net8\.0/net10.0/g' {} +
+    -exec sed -Ei 's#<TargetFramework>[^<]+</TargetFramework>#<TargetFramework>'"$DOTNET_TFM"'</TargetFramework>#g' {} +
 
   while IFS= read -r -d '' f; do
     sed -i \
