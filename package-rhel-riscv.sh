@@ -18,7 +18,7 @@ DOTNET_RISCV_BASE="https://github.com/filipnavara/dotnet-riscv/releases/download
 DOTNET_RISCV_FILE="dotnet-sdk-${DOTNET_RISCV_VERSION}-linux-riscv64.tar.gz"
 DOTNET_SDK_URL="${DOTNET_RISCV_BASE}/${DOTNET_RISCV_VERSION}/${DOTNET_RISCV_FILE}"
 SKIA_VER="${SKIA_VER:-3.119.2}"
-HARFBUZZ_VER="${HARFBUZZ_VER:-8.3.1.1}"
+HARFBUZZ_VER="${HARFBUZZ_VER:-8.3.1.3}"
 
 OS_ID=""
 OS_NAME=""
