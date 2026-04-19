@@ -120,7 +120,7 @@ install_dependencies() {
 
     wget -q https://dot.net/v1/dotnet-install.sh
     chmod +x dotnet-install.sh
-    ./dotnet-install.sh --channel 8.0 --install-dir "$HOME/.dotnet"
+    ./dotnet-install.sh --channel 10.0 --install-dir "$HOME/.dotnet"
 
     export PATH="$HOME/.dotnet:$PATH"
     export DOTNET_ROOT="$HOME/.dotnet"
@@ -130,7 +130,7 @@ install_dependencies() {
 
   if [[ "$install_ok" -ne 1 ]]; then
     echo "Could not auto-install dependencies for '$OS_ID'. Make sure these are available:"
-    echo "dotnet-sdk 8.x, curl, unzip, tar, rsync, git, dpkg-deb, desktop-file-utils, xdg-utils"
+    echo "dotnet-sdk 10.x, curl, unzip, tar, rsync, git, dpkg-deb, desktop-file-utils, xdg-utils"
     exit 1
   fi
 }
