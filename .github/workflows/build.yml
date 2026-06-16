@@ -54,11 +54,24 @@ jobs:
     - name: Purge SDKs
       shell: pwsh
       run: |
-        if ($IsWindows) {
-          Remove-Item "C:\Program Files\dotnet\sdk\*" -Recurse -Force
-        }
-        elseif ($IsLinux -or $IsMacOS) {
-          sudo rm -rf /usr/share/dotnet/sdk/*
+        dotnet --list-sdks | ForEach-Object {
+          $parts = $_ -split '\[', 2
+
+          if ($parts.Count -eq 2) {
+            $version = $parts[0].Trim().Split(' ')[0]
+            $root = $parts[1].TrimEnd(']')
+            $sdkDir = Join-Path $root $version
+
+            Write-Host "Removing $sdkDir"
+
+            if (Test-Path $sdkDir) {
+              if ($IsWindows) {
+                Remove-Item $sdkDir -Recurse -Force
+              } else {
+                sudo rm -rf "$sdkDir"
+              }
+            }
+          }
         }
 
     - name: Setup .NET
