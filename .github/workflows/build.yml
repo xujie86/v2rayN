@@ -51,6 +51,16 @@ jobs:
         submodules: 'recursive'
         fetch-depth: '0'
 
+    - name: Purge SDKs
+      shell: pwsh
+      run: |
+        if ($IsWindows) {
+          Remove-Item "C:\Program Files\dotnet\sdk\*" -Recurse -Force
+        }
+        elseif ($IsLinux -or $IsMacOS) {
+          sudo rm -rf /usr/share/dotnet/sdk/*
+        }
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v5.3.0
       with:
