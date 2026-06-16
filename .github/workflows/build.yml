@@ -54,15 +54,11 @@ jobs:
     - name: Purge SDKs
       shell: pwsh
       run: |
-        dotnet --list-sdks | ForEach-Object {
-          if ($_ -match '^\S+\s+\[(.+)\]$') {
-            $dir = Join-Path $Matches[1] $Matches[0].Split()[0]
-            Write-Host "Removing $dir"
-            if (Test-Path $dir) {
-              if ($IsWindows) { Remove-Item $dir -Recurse -Force }
-              else { sudo rm -rf "$dir" }
-            }
-          }
+        dotnet --list-sdks | % {
+          $_ -match '^\S+\s+\[(.+)\]$' > $null
+          $d = Join-Path $Matches[1] $_.Split()[0]
+          Write-Host "Removing $d"
+          if ($IsWindows) { rm $d -r -fo } else { sudo rm -rf "$d" }
         }
 
     - name: Setup .NET
