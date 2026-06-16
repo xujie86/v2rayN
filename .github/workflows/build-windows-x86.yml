@@ -34,27 +34,20 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Purge SDKs
+        shell: pwsh
+        run: |
+          dotnet --list-sdks | % {
+            $_ -match '^\S+\s+\[(.+)\]$' > $null
+            $d = Join-Path $Matches[1] $_.Split()[0]
+            Write-Host "Removing $d"
+            if ($IsWindows) { rm $d -r -fo } else { sudo rm -rf "$d" }
+          }
+
       - name: Setup .NET 10.0.1xx
         uses: actions/setup-dotnet@v5.2.0
         with:
           dotnet-version: 10.0.1xx
-
-      - name: Debug .NET SDKs
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          Write-Host "==== dotnet path ===="
-          Get-Command dotnet | Format-List *
-
-          Write-Host "==== dotnet --version ===="
-          dotnet --version
-
-          Write-Host "==== dotnet --list-sdks ===="
-          dotnet --list-sdks
-
-          Write-Host "==== dotnet --info ===="
-          dotnet --info
 
       - name: Publish ${{ matrix.flavor }} win-x86
         shell: pwsh
