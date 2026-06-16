@@ -49,6 +49,29 @@ jobs:
         with:
           dotnet-version: 10.0.1xx
 
+      - name: Verify .NET SDK
+        shell: pwsh
+        run: |
+          Write-Host "==== global.json ===="
+          if (Test-Path "global.json") {
+            Get-Content "global.json"
+          } else {
+            Write-Host "global.json not found"
+          }
+
+          Write-Host "==== dotnet --version ===="
+          $sdk = dotnet --version
+          Write-Host $sdk
+
+          Write-Host "==== dotnet --list-sdks ===="
+          dotnet --list-sdks
+
+          if (-not $sdk.StartsWith("10.0.1")) {
+            throw "Unexpected SDK: $sdk"
+          }
+
+          Write-Host "Using expected SDK: $sdk"
+
       - name: Publish ${{ matrix.flavor }} win-x86
         shell: pwsh
         run: |
