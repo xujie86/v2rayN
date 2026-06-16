@@ -55,21 +55,12 @@ jobs:
       shell: pwsh
       run: |
         dotnet --list-sdks | ForEach-Object {
-          $parts = $_ -split '\[', 2
-
-          if ($parts.Count -eq 2) {
-            $version = $parts[0].Trim().Split(' ')[0]
-            $root = $parts[1].TrimEnd(']')
-            $sdkDir = Join-Path $root $version
-
-            Write-Host "Removing $sdkDir"
-
-            if (Test-Path $sdkDir) {
-              if ($IsWindows) {
-                Remove-Item $sdkDir -Recurse -Force
-              } else {
-                sudo rm -rf "$sdkDir"
-              }
+          if ($_ -match '^\S+\s+\[(.+)\]$') {
+            $dir = Join-Path $Matches[1] $Matches[0].Split()[0]
+            Write-Host "Removing $dir"
+            if (Test-Path $dir) {
+              if ($IsWindows) { Remove-Item $dir -Recurse -Force }
+              else { sudo rm -rf "$dir" }
             }
           }
         }
