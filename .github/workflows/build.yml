@@ -56,6 +56,23 @@ jobs:
       with:
         dotnet-version: '10.0.1xx'
 
+    - name: Verify .NET SDK
+      run: |
+        echo "==== global.json ===="
+        cat global.json
+
+        echo "==== dotnet --version ===="
+        dotnet --version
+
+        echo "==== dotnet --list-sdks ===="
+        dotnet --list-sdks
+
+        SDK="$(dotnet --version)"
+        case "$SDK" in
+          10.0.1*) echo "Using expected SDK: $SDK" ;;
+          *) echo "Unexpected SDK: $SDK"; exit 1 ;;
+        esac
+
     - name: Build v2rayN
       working-directory: ./v2rayN
       run: dotnet publish $Project -c Release -r $RID -p:SelfContained=true $ExtOpt -o $Output
